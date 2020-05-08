@@ -34,6 +34,7 @@ else
 }
 
 MAX_CHAR = 1024; //Max msg char length
+EMBED_COLOR = 15844367;
 
 USR_MAP = new Map(); //Map of online users
 REGEX_MAP = new Map(); //Map of regex for blacklisted words
@@ -87,7 +88,7 @@ function sendMsg(type, tag, username, message, timestamp, channel, log)
   client.channels.fetch(channel).then(channel =>{
     channel.send({embed:
     {
-      color: 15844367,
+      color: EMBED_COLOR,
       title: tag,
       fields:
       [
@@ -146,7 +147,7 @@ if (RegExp('^!').test(msg.content))
     case "ping":
       msg.channel.send({embed:
       {
-        color: 15844367,
+        color: EMBED_COLOR,
         title: "Pong!",
         description: "I'm alive."}
       });
@@ -185,7 +186,7 @@ if (RegExp('^!').test(msg.content))
             output.push(msg[1]);
           }
         }
-	catch(e)
+	      catch(e)
         {
           console.log(`regex:${e}\n`);
           fs.appendFileSync(`${logPath}regex.log` , `regex:${e}\n`);
@@ -200,7 +201,7 @@ if (RegExp('^!').test(msg.content))
         var msgLen = msgOut.length;
         if (msgLen > 0)
         {
-	  msgOut = msgOut.substring(msgLen - MAX_CHAR,msgLen);
+	        msgOut = msgOut.substring(msgLen - MAX_CHAR,msgLen);
           sendMsg(reqType , input, msg.member , msgOut , timestamp , msg.channel.id , 'discord.log');
         }
         else
@@ -280,6 +281,11 @@ ws.on('message', function incoming(data)
       var log = req.content.split(" ");
       var shiMsg = log.shift();
       sendMsg(req.type , "Action", shiMsg, req.content, timestamp, config.channel.ban , 'mod.log');
+    break;
+
+    case "warning":
+      req.error = `${req.type}:auth failed!`;
+      fs.appendFileSync(`${logPath}/err.log` ,`${JSON.stringify(req, null, 0)}\n`); 
     break;
 
     default:
