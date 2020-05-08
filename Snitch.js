@@ -6,16 +6,32 @@ const { Client, MessageEmbed } = require('discord.js');
 const client = new Client(); //Discord client
 const ws = new WebSocket('wss://ws.twist.moe', {origin: 'twist.moe'}); //Create a websocket
 
-const tokenPath = '/root/Snitch/tokens/';
-const logPath = '/root/Snitch/logs/';
+const activePath = __dirname;
+const logPath = `${activePath}/logs/`;
+const configPath = `${activePath}/config.json`;
 
-//Load Tokens
-var AT_TOKEN = fs.readFileSync(tokenPath + 'at', 'utf8'); //twist.moe user token
-var DIS_TOKEN = fs.readFileSync(tokenPath + 'discord', 'utf8'); //Discord bot token
+let config;
 
-//Remove newlines
-AT_TOKEN = AT_TOKEN.trim();
-DIS_TOKEN = DIS_TOKEN.trim();
+// Check if files and config exsists
+if (!fs.existsSync(logPath))
+{
+  console.log(`Couldnt find the folder ${logPath} creating now`)
+  fs.mkdirSync(logPath);
+  fs.openSync(`${logPath}/msg.log`, 'w');
+}
+
+if (fs.existsSync(configPath))
+{
+  configData = fs.readFileSync(configPath);
+  config = JSON.parse(configData);
+}
+else
+{
+  console.log(`Couldnt read config file, creating a demo config file at ${configPath}.default`);
+  config = {token:{at : "TOKEN", discord : "TOKEN"}, channel:{trigger : "ID",ban : "ID"}};
+  fs.writeFileSync(`${configPath}.default`, JSON.stringify(config ,null ,2));
+  process.exit()
+}
 
 MAX_CHAR = 1024; //Max msg char length
 
@@ -42,12 +58,12 @@ ws.on('open', function open()
 {
   var auth = new Object();
   auth.type = "auth";
-  auth.content = AT_TOKEN;
+  auth.content = config.token.at;
   ws.send(JSON.stringify(auth, null, 0));
 });
 
 //Discord login
-client.login(DIS_TOKEN);
+client.login(config.token.discord);
 
 //Record discord login
 client.on('ready', () => {
@@ -73,25 +89,26 @@ function sendMsg(type, tag, username, message, timestamp, channel, log)
     {
       color: 15844367,
       title: tag,
-      fields: [
-	{
+      fields:
+      [
+        {
           name: "Message",
-	  value: msgReq.content.msg,
-	  inline: true,
-	},
+	        value: msgReq.content.msg,
+          inline: true,
+        },
       ],
       footer:
       {
-	text: username + "@" + timestamp,
+        text: username + "@" + timestamp,
       }}
     });
   }).catch(err =>
   {
     msgReq.error = err;
     console.log(JSON.stringify(msgReq, null, 0) + "\n");
-    fs.appendFileSync(logPath + "err.log", JSON.stringify(msgReq, null, 0) + "\n");
+    fs.appendFileSync(`${logPath}/err.log` , JSON.stringify(msgReq, null, 0) + "\n");
   });
-  fs.appendFileSync(logPath + log, JSON.stringify(msgReq, null, 0) + "\n");
+  fs.appendFileSync(`${logPath}/${log}`, JSON.stringify(msgReq, null, 0) + "\n");
 }
 
 function getTime(arg)
@@ -99,7 +116,7 @@ function getTime(arg)
   var time = Date.now();
   var curTime = new Date(time).toLocaleTimeString("en-US");
   var curDate = new Date(time).toLocaleDateString("en-US");
-  var timestamp = curDate + "-" + curTime;
+  var timestamp = `${curDate}-${curTime}`;
 
   switch(arg)
   {
@@ -140,7 +157,7 @@ if (RegExp('^!').test(msg.content))
       var output = [];
       for (const [key, value] of USR_MAP)
       {
-        output.push(value + "\t\t" + key);
+        output.push(`${value}\t\t${key}`);
       }
       var msgOut = output.join("\n");
       var msgLen = msgOut.length;
@@ -155,9 +172,9 @@ if (RegExp('^!').test(msg.content))
     case "regex":
       var output = [];
       var timestamp = getTime("stamp")
-      var lr = new LineByLineReader(logPath + 'msg.log');
+      var lr = new LineByLineReader(`${logPath}/msg.log`);
 
-      console.log(console.log("Discord:test:" + input));
+      console.log(console.log(`Discord:test:${input}`));
       lr.on('line', function (line)
       {
         var msg = line.match('.*msg":"(.*)"},"time');
@@ -170,8 +187,8 @@ if (RegExp('^!').test(msg.content))
         }
 	catch(e)
         {
-          console.log("regex:" + e);
-          fs.appendFileSync(logPath + 'regex.log', "regex:" + e + "\n");
+          console.log(`regex:${e}\n`);
+          fs.appendFileSync(`${logPath}regex.log` , `regex:${e}\n`);
           lr.close();
         }
       });
@@ -218,29 +235,29 @@ ws.on('message', function incoming(data)
   switch(req.type)
   {
     case "client-add":
-      console.log(req.type + ":" + req.content.username + " has been added");
+      console.log(`${req.type}:${req.content.username} has been added`);
       USR_MAP.set(req.content.username, getTime());
-      fs.appendFileSync(logPath + 'action.log',JSON.stringify(req, null, 0) + "\n");
+      fs.appendFileSync(`${logPath}/err.log` ,`${JSON.stringify(req, null, 0)}\n`);
     break;
 
     case "client-remove":
       if (USR_MAP.has(req.content.username))
       {
-        console.log(req.type + ":" + req.content.username + " has been removed");
+        console.log(`${req.type}:${req.content.username} has been removed`);
         USR_MAP.delete(req.content.username);
-        fs.appendFileSync(logPath + 'action.log',JSON.stringify(req, null, 0) + "\n");
+        fs.appendFileSync(`${logPath}/err.log` ,`${JSON.stringify(req, null, 0)}\n`);
       }
     break;
 
     case "msg":
-      console.log(req.type + ":" + req.content.user.username + ":" + req.content.msg);
-      fs.appendFileSync(logPath + 'msg.log',JSON.stringify(req, null, 0) + "\n");
+      console.log(`${req.type}:${req.content.user.username}:${req.content.msg}`);
+      fs.appendFileSync(`${logPath}/msg.log` ,`${JSON.stringify(req, null, 0)}\n`);
 
       for (const [key, value] of REGEX_MAP)
       {
         if (RegExp(value).test(req.content.msg.toLowerCase()))
         {
-          sendMsg(req.type , key , req.content.user.username , req.content.msg, timestamp ,'705674402179579918','trigger.log');
+          sendMsg(req.type , key , req.content.user.username , req.content.msg, timestamp ,config.channel.trigger ,'trigger.log');
           break;
         }
       }
@@ -248,41 +265,41 @@ ws.on('message', function incoming(data)
       {
         if (RegExp(regex).test(req.content.msg.toLowerCase()))
         {
-          sendMsg(req.type , "spam" , req.content.user.username , req.content.msg, timestamp ,'705674402179579918','trigger.log');
+          sendMsg(req.type , "spam" , req.content.user.username , req.content.msg, timestamp ,config.channel.trigger ,'trigger.log');
           break;
         }
       }
     break;
 
     case "user":
-      console.log(req.type + ":" + req.content.username + " logged in")
-      fs.appendFileSync(logPath + 'user.log',JSON.stringify(req, null, 0) + "\n");
+      console.log(`${req.type}:${req.content.username} logged in`)
+      fs.appendFileSync(`${logPath}/user.log` ,JSON.stringify(req, null, 0) + "\n");
     break;
 
     case "log":
       var log = req.content.split(" ");
       var shiMsg = log.shift();
-      sendMsg(req.type , "Action", shiMsg, req.content, timestamp, '602600368333127721', 'mod.log');
+      sendMsg(req.type , "Action", shiMsg, req.content, timestamp, config.channel.ban , 'mod.log');
     break;
 
     default:
-      console.log(req.type + ":not implemented");
-      req.error = req.type + " is not implemented";
-      fs.appendFileSync(logPath + 'err.log',JSON.stringify(req, null, 0) + "\n");
+      console.log(`${req.type}:not implemented`);
+      req.error = `${req.type}:not implemented`;
+      fs.appendFileSync(`${logPath}/err.log` ,JSON.stringify(req, null, 0) + "\n");
     break;
   }
 });
 
 
 //ERROR HANDLERS
-process.on('unhandledRejection', error =>
+process.on('unhandledRejection', err =>
 {
-  console.error('Unhandled promise rejection:', error);
-  fs.appendFileSync(logPath + 'err.log', "Discord:" + error + "\n");
+  console.error('Unhandled promise rejection:', err);
+  fs.appendFileSync(`${logPath}/err.log` , `Discord:${err}\n`);
 });
 
 client.on('shardError', error =>
 {
   console.error('A websocket connection encountered an error:', error);
-  fs.appendFileSync(logPath + 'err.log', "Discord:" + error + "\n");
+  fs.appendFileSync(`${logPath}/err.log` , `Discord:${err}\n`);
 });
