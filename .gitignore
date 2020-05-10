@@ -1,5 +1,7 @@
 logs/
+lists/
 node_modules/
 .vscode/
 config.json
+config.json.default
 package-lock.json
