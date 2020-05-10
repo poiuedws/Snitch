@@ -1,130 +1,64 @@
-const WebSocket = require('ws');
-const fs = require('fs');
-const LineByLineReader = require('line-by-line');
-const { Client, MessageEmbed } = require('discord.js');
+//Import dependencies
+const WebSocket = require('ws'); //Websocket
+const fs = require('fs'); //File server
+const LineByLineReader = require('line-by-line'); //File stream manager
+const { Client, MessageEmbed } = require('discord.js'); //Discord's API implementation
+const File = require(`${__dirname}/File.js`); //File manager class
 
+//Initiate dependencies
 const client = new Client(); //Discord client
 const ws = new WebSocket('wss://ws.twist.moe', { origin: 'twist.moe' }); //Create a websocket
+const FILE = new File(); //File management class
 
-const ACTIVE_PATH = __dirname;
-const LOG_PATH = `${ACTIVE_PATH}/logs`;
-const LIST_PATH = `${ACTIVE_PATH}/lists`;
-const CONFIG_PATH = `${ACTIVE_PATH}/config.json`;
+//Set paths
+const ACTIVE_PATH = __dirname; //Active directory
+const LOG_PATH = `${ACTIVE_PATH}/logs`; //Log directory
+const LIST_PATH = `${ACTIVE_PATH}/lists`; //List directory
+const CONFIG_PATH = `${ACTIVE_PATH}/config.json`; //Config path
 
+//Set constants
 const MAX_CHAR = 1024; //Max msg char length
-const EMBED_COLOR = 15844367;
+const EMBED_COLOR = 15844367; //Discord embeded message color
+const PREFIX = "!"; //Discord commmand prefix
 
-USR_MAP = new Map(); //Map of online users
-REGEX_MAP = new Map(); //Map of regex for blacklisted words
-SPAM = []; //Spam trigger array
-let CONFIG = {};
+//Set global maps
+var USR_MAP = new Map(); //Map of online users
+var REGEX_MAP = new Map(); //Map of regex for blacklisted words
 
-class File
-{
-  createMissingDir(path)
-  {
-    if (!fs.existsSync(path))
-    {
-      console.log(`Couldnt find the folder ${path} creating now`);
-      fs.mkdirSync(path);
-    }
-  }
+//Set global arrays
+var SPAM = []; //Spam trigger array
+var MESSAGES = [];
 
-  createMissingFile(path)
-  {
-    if (!fs.existsSync(path))
-    {
-      console.log(`Couldnt find the file ${path} creating now`);
-      fs.openSync(path, 'w');
-    }
-  }
+//Set global objects
+var CONFIG = {}; //Config obj
+var JSONbody = {};
 
-  importJSONfile(path, JSONobj)
-  {
-    if (fs.existsSync(path))
-    {
-      var fileData = fs.readFileSync(path);
-      JSONobj = JSON.parse(fileData);
-      return JSONobj;
-    }
-  }
-
-  createJSONfile(path, file, JSONobj, exitCode)
-  {
-    if (!fs.existsSync(path))
-    {
-      console.log(`Creating a file at ${path}`);
-      fs.writeFileSync(file, JSON.stringify(JSONobj, null, 2));
-      if (exitCode)
-      {
-        process.exit();
-      }
-    }
-  }
-
-  mapToJSON(path, map)
-  {
-    fs.openSync(path, 'w');
-    for (const [key, value] of map)
-    {
-      var body =
-      {
-        key: key,
-        value: value
-      };
-      var JSONstr = JSON.stringify(body);
-      fs.appendFileSync(path, `${JSONstr}\n`);
-    }
-  }
-
-  JSONtoMap(path)
-  {
-    var lr = new LineByLineReader(path, { encoding: 'utf8', skipEmptyLines: true });
-    let outMap = new Map();
-
-    lr.on('line', function (line)
-    {
-      try
-      {
-        var data = JSON.parse(line);
-        outMap.set(data.key, data.value);
-      }
-      catch (err)
-      {
-        console.log(`JSONtoMap:${err}\n`);
-        lr.close();
-        lr.end();
-      }
-    });
-    return outMap;
-  }
-}
-const FILE = new File();
-
+//Check missing direcotries, create if doesnt exist
 FILE.createMissingDir(LOG_PATH);
 FILE.createMissingDir(LIST_PATH);
 
+//Check missing files, create if doesnt exist
 FILE.createMissingFile(`${LOG_PATH}/msg.log`);
 
-var configBody = { token: { at: "TOKEN", discord: "TOKEN" }, channel: { trigger: "ID", ban: "ID" } };
-FILE.createJSONfile(CONFIG_PATH, `${CONFIG_PATH}.default`, configBody, true);
+//Create missing json files
+JSONbody = { token: { at: "TOKEN", discord: "TOKEN" }, channel: { trigger: "ID", ban: "ID" } }; //Config Body
+FILE.createJSONfile(CONFIG_PATH, `${CONFIG_PATH}.default`, JSONbody, true); //Create config if doesnt exist, then exit
 
-var configBody = {"key":"nigger","value":"\\b((n[^a]?(i+.?|!+.?))+)(g.?g+.?e+.?r+.?|g?.?g+.?l+.?e.?t.?)"};
-FILE.createJSONfile(LIST_PATH, `${LIST_PATH}/regex.json`, configBody, false);
+JSONbody = { "key": "nigger", "value": "\\b((n[^a]?(i+.?|!+.?))+)(g.?g+.?e+.?r+.?|g?.?g+.?l+.?e.?t.?)" }; //Regex body
+FILE.createJSONfile(LIST_PATH, `${LIST_PATH}/regex.json`, JSONbody, false); //Create regex if doesnt exist,
 
+//Set globals from file
 REGEX_MAP = FILE.JSONtoMap(`${LIST_PATH}/regex.json`);
 CONFIG = FILE.importJSONfile(CONFIG_PATH, CONFIG);
 
-//Spam triggers
+//Set spam triggers
 SPAM.push('(.)\\1{15,200}'); //reapted characthers
-SPAM.push('(\\w+\\w+)(.?\1){4,}'); //reapted words
-SPAM.push('\\w{16,}');
-SPAM.push('.{150,}');
+SPAM.push('(\\S+\\S+)(.?\\1){4,}'); //reapted words
 
 //Auth as token on startup
 ws.on('open', function open()
 {
-  var auth = new Object();
+  let auth = new Object();
   auth.type = "auth";
   auth.content = CONFIG.token.at;
   ws.send(JSON.stringify(auth, null, 0));
@@ -143,7 +77,7 @@ client.on('ready', () =>
 function sendMsg(type, tag, username, message, timestamp, channel, log)
 {
   //Parse a JSON object
-  var msgReq = {
+  let msgReq = {
     "type": type,
     "content":
     {
@@ -154,7 +88,7 @@ function sendMsg(type, tag, username, message, timestamp, channel, log)
     , "timestamp": timestamp,
     "error": "null",
   };
-
+  //Parse message
   client.channels.fetch(channel).then(channel =>
   {
     channel.send({
@@ -178,18 +112,18 @@ function sendMsg(type, tag, username, message, timestamp, channel, log)
     });
   }).catch(err =>
   {
-    msgReq.error = err;
-    console.log(`${JSON.stringify(msgReq, null, 0)}\n`);
-    fs.appendFileSync(`${LOG_PATH}/err.log`, `${JSON.stringify(msgReq, null, 0)}\n`);
+    msgReq.error = err; //Set request error
+    console.log(`${JSON.stringify(msgReq, null, 0)}\n`); //Output request
+    fs.appendFileSync(`${LOG_PATH}/err.log`, `${JSON.stringify(msgReq, null, 0)}\n`); //Write request to error log
   });
-  fs.appendFileSync(`${LOG_PATH}/${log}`, `${JSON.stringify(msgReq, null, 0)}\n`);
+  fs.appendFileSync(`${LOG_PATH}/${log}`, `${JSON.stringify(msgReq, null, 0)}\n`); //Write request to log
 }
 
 function santizeMsg(output)
 {
-  var msgOut = output.join("\n");
+  let msgOut = output.join("\n"); //
   msgOut = msgOut.replace(/\*/g, "\\\*");
-  var msgLen = msgOut.length;
+  let msgLen = msgOut.length;
 
   if (msgLen > MAX_CHAR)
   {
@@ -200,10 +134,10 @@ function santizeMsg(output)
 
 function getTime(arg)
 {
-  var time = Date.now();
-  var curTime = new Date(time).toLocaleTimeString("en-US");
-  var curDate = new Date(time).toLocaleDateString("en-US");
-  var timestamp = `${curDate}-${curTime}`;
+  let time = Date.now();
+  let curTime = new Date(time).toLocaleTimeString("en-US");
+  let curDate = new Date(time).toLocaleDateString("en-US");
+  let timestamp = `${curDate}-${curTime}`;
 
   switch (arg)
   {
@@ -221,30 +155,33 @@ function getTime(arg)
 
 client.on('message', msg =>
 {
-  if (RegExp('^!').test(msg.content))
+  //If it's a command
+  if (RegExp(`^${PREFIX}`).test(msg.content))
   {
-    var timestamp = getTime("stamp");
-    var command = msg.content.substr(1);
-    var args = command.split(" ");
-    var input = command.substring(args[0].length + 1, command.length);
+    let timestamp = getTime("stamp"); //Set timestamp
+    let output = []; //Local array for outputs
 
+    let command = msg.content.substr(1); //Full user input, includes the command
+    let args = command.split(" "); //Split user input
+    let input = command.substring(args[0].length + 1, command.length);//Full user input, excludes the command
+
+    //Command handler
     switch (args[0])
     {
-
       case "ping":
-        msg.channel.send({
-          embed:
+        msg.channel.send(
           {
-            color: EMBED_COLOR,
-            title: "Pong!",
-            description: "I'm alive."
-          }
-        });
+            embed:
+            {
+              color: EMBED_COLOR,
+              title: "Pong!",
+              description: "I'm alive."
+            }
+          });
         break;
 
       case "online":
         console.log("Discord:online");
-        var output = [];
         for (const [key, value] of USR_MAP)
         {
           output.push(`${value}\t\t${key}`);
@@ -253,7 +190,6 @@ client.on('message', msg =>
         break;
 
       case "regexlist":
-        output = [];
         for (const [key, value] of REGEX_MAP)
         {
           output.push(`${key}~${value}`);
@@ -262,14 +198,12 @@ client.on('message', msg =>
         break;
 
       case "regex":
-        var output = [];
-        var timestamp = getTime("stamp");
-        var lr = new LineByLineReader(`${LOG_PATH}/msg.log`, { encoding: 'utf8', skipEmptyLines: true });
+        let lr = new LineByLineReader(`${LOG_PATH}/msg.log`, { encoding: 'utf8', skipEmptyLines: true });
 
         console.log(console.log(`Discord:test:${input}`));
         lr.on('line', function (line)
         {
-          var data = JSON.parse(line);
+          let data = JSON.parse(line);
           try
           {
             if (RegExp(input).test(data.content.msg.toLowerCase()))
@@ -290,9 +224,9 @@ client.on('message', msg =>
 
         lr.on('end', function ()
         {
-          var msgOut = output.join("\n");
+          let msgOut = output.join("\n");
           msgOut = santizeMsg(output);
-          var msgLen = msgOut.length;
+          let msgLen = msgOut.length;
 
           if (msgLen > 0)
           {
@@ -306,11 +240,12 @@ client.on('message', msg =>
         break;
 
       case "regexset":
-        var msgOut = "";
-        var tag = "";
+        let msgOut = "";
+        let tag = "";
         input = input.split('~');
-        regTag = input[0];
-        regExp = input[1];
+
+        let regTag = input[0];
+        let regExp = input[1];
 
         try
         {
@@ -352,22 +287,22 @@ client.on('message', msg =>
         sendMsg(args[0], tag, msg.member, msgOut, timestamp, msg.channel.id, 'discord.log');
         break;
 
-        case "regexdel":
-          msgOut = "Deleted regex";
-          tag = "Success!";
-    
-          try
-          {
-            REGEX_MAP.delete(input);
-            FILE.mapToJSON(`${LIST_PATH}/regex.json`, REGEX_MAP);
-          }
-          catch (err)
-          {
-            msgOut = `Couldn't delete regex ${err}`;
-            tag = "Sorry!";
-          }
-          sendMsg(args[0], tag, msg.member, msgOut, timestamp, msg.channel.id, 'discord.log');
-          break;
+      case "regexdel":
+        msgOut = "Deleted regex";
+        tag = "Success!";
+
+        try
+        {
+          REGEX_MAP.delete(input);
+          FILE.mapToJSON(`${LIST_PATH}/regex.json`, REGEX_MAP);
+        }
+        catch (err)
+        {
+          msgOut = `Couldn't delete regex ${err}`;
+          tag = "Sorry!";
+        }
+        sendMsg(args[0], tag, msg.member, msgOut, timestamp, msg.channel.id, 'discord.log');
+        break;
     }
   }
 });
@@ -376,7 +311,7 @@ client.on('message', msg =>
 ws.on('message', function incoming(data)
 {
   req = JSON.parse(data);
-  var timestamp = getTime("stamp");
+  let timestamp = getTime("stamp");
 
   function matchOwn(regex, results)
   {
@@ -392,7 +327,7 @@ ws.on('message', function incoming(data)
     case "client-add":
       console.log(`${req.type}:${req.content.username} has been added`);
       USR_MAP.set(req.content.username, getTime());
-      fs.appendFileSync(`${LOG_PATH}/err.log`, `${JSON.stringify(req, null, 0)}\n`);
+      fs.appendFileSync(`${LOG_PATH}/action.log`, `${JSON.stringify(req, null, 0)}\n`);
       break;
 
     case "client-remove":
@@ -400,13 +335,12 @@ ws.on('message', function incoming(data)
       {
         console.log(`${req.type}:${req.content.username} has been removed`);
         USR_MAP.delete(req.content.username);
-        fs.appendFileSync(`${LOG_PATH}/err.log`, `${JSON.stringify(req, null, 0)}\n`);
+        fs.appendFileSync(`${LOG_PATH}/action.log`, `${JSON.stringify(req, null, 0)}\n`);
       }
       break;
 
     case "msg":
       console.log(`${req.type}:${req.content.user.username}:${req.content.msg}`);
-      fs.appendFileSync(`${LOG_PATH}/msg.log`, `${JSON.stringify(req, null, 0)}\n`);
 
       for (const [key, value] of REGEX_MAP)
       {
@@ -424,21 +358,46 @@ ws.on('message', function incoming(data)
           break;
         }
       }
+
+      for (let objOut of MESSAGES)
+      {
+        let objUsr = objOut.content.user.username;
+        let objMsg = objOut.content.msg;
+        if(req.content.user.username == objUsr && req.content.msg == objMsg && objMsg.length > 150)
+        {
+          sendMsg(req.type, "Mass spam", req.content.user.username, req.content.msg, timestamp, CONFIG.channel.trigger, 'trigger.log');
+          let wsOBJ = new Object();
+          wsOBJ.type = "msg";
+          wsOBJ.content = `/ban ${req.content.user.username} 60 for spam | 1 hour`; //Byebye juzo
+          ws.send(JSON.stringify(wsOBJ, null, 0));
+          MESSAGES = [];
+        }
+      }
+
+      if (MESSAGES.length < 14)
+      {
+        MESSAGES.push(req);
+      }
+      else
+      {
+        MESSAGES.shift();
+        MESSAGES.push(req);
+      }
+
+      fs.appendFileSync(`${LOG_PATH}/msg.log`, `${JSON.stringify(req, null, 0)}\n`);
       break;
 
     case "user":
       console.log(`${req.type}:${req.content.username} logged in`);
-      fs.appendFileSync(`${LOG_PATH}/user.log`, `${JSON.stringify(req, null, 0)}\n`);
       break;
 
     case "log":
-      var log = req.content.split(" ");
-      var shiMsg = log.shift();
-      sendMsg(req.type, "Action", shiMsg, req.content, timestamp, CONFIG.channel.ban, 'mod.log');
+      let log = req.content.split(" ");
+      sendMsg(req.type, "Action", log[0], req.content, timestamp, CONFIG.channel.ban, 'mod.log');
       break;
 
     case "warning":
-      req.error = `${req.type}:auth failed!`;
+      req.error = `${req.type}:${req.content}`;
       fs.appendFileSync(`${LOG_PATH}/err.log`, `${JSON.stringify(req, null, 0)}\n`);
       break;
 
