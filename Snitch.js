@@ -264,17 +264,19 @@ client.on('message', msg =>
       case "regex":
         var output = [];
         var timestamp = getTime("stamp");
-        var lr = new LineByLineReader(`${LOG_PATH}/msg.log`);
+        var lr = new LineByLineReader(`${LOG_PATH}/msg.log`, { encoding: 'utf8', skipEmptyLines: true });
 
         console.log(console.log(`Discord:test:${input}`));
         lr.on('line', function (line)
         {
-          var msg = line.match('.*msg":"(.*)"},"time');
+          var data = JSON.parse(line);
           try
           {
-            if (RegExp(input).test(msg[1]))
+            if (RegExp(input).test(data.content.msg.toLowerCase()))
             {
-              output.push(msg[1]);
+              data.content.user.username = data.content.user.username.replace(/\*/g, "\\\*");
+              data.content.msg = data.content.msg.replace(/\*/g, "\\\*");
+              output.push(`${data.content.user.username}:${data.content.msg}`);
             }
           }
           catch (err)
