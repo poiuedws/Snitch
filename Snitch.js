@@ -11,8 +11,8 @@ const LOG_PATH = `${ACTIVE_PATH}/logs`;
 const LIST_PATH = `${ACTIVE_PATH}/lists`;
 const CONFIG_PATH = `${ACTIVE_PATH}/config.json`;
 
-MAX_CHAR = 1024; //Max msg char length
-EMBED_COLOR = 15844367;
+const MAX_CHAR = 1024; //Max msg char length
+const EMBED_COLOR = 15844367;
 
 USR_MAP = new Map(); //Map of online users
 REGEX_MAP = new Map(); //Map of regex for blacklisted words
