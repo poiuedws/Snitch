@@ -359,43 +359,53 @@ ws.on('message', function incoming(data)
         }
       }
 
+      var usrMsg = 0;
       for (let objOut of MESSAGES)
       {
-        let usrMsgs;
-        let exactMsgs;
-        let objUsr = objOut.content.user.username;
-        let objMsg = objOut.content.msg;
-
         let wsOBJ = new Object();
         wsOBJ.type = "msg";
 
+        let objUsr = objOut.content.user.username;
+        let objMsg = objOut.content.msg;
+
+
         if (req.content.user.username == objUsr)
         {
-          ++usrMsgs;
-          if (req.content.msg == objMsg)
+          ++usrMsg;
+          console.log(`Same user:${req.content.user.username}:${usrMsg}:${usrMsg}`);
+          if (req.content.msg.length > 100)
           {
-            if (objMsg.length > 100)
+            if (req.content.msg == objMsg)
             {
+              console.log(`MassSpam:${req.content.user.username}:${req.content.msg}`);
               sendMsg(req.type, "Mass spam", req.content.user.username, req.content.msg, timestamp, CONFIG.channel.trigger, 'trigger.log');
+
               wsOBJ.content = `/ban ${req.content.user.username} 60 for spam | 1 hour`; //Byebye juzo
               ws.send(JSON.stringify(wsOBJ, null, 0));
               MESSAGES = [];
             }
           }
-          else if(usrMsgs > 4)
+          else
           {
-            wsOBJ.content = `/warn ${req.content.user.username} for slow down`;
-            ws.send(JSON.stringify(wsOBJ, null, 0));
-          }
-          else if(usrMsgs > 7)
-          {
-            wsOBJ.content = `/ban ${req.content.user.username} 5 for spam | 5 minutes`;
-            ws.send(JSON.stringify(wsOBJ, null, 0));
+            if (usrMsg > 3 && usrMsg < 5)
+            {
+              console.log(`Spam warn:${req.content.user.username}`);
+              wsOBJ.content = `/warn ${req.content.user.username} for slow down`;
+              ws.send(JSON.stringify(wsOBJ, null, 0));
+            }
+            else if (usrMsg > 5)
+            {
+              console.log(`Spam ban:${req.content.user.username}:${req.content.msg}`);
+              wsOBJ.content = `/ban ${req.content.user.username} 15 for spam | 15 minutes`;
+              ws.send(JSON.stringify(wsOBJ, null, 0));
+            }
           }
         }
       }
+      usrMsg = 0;
 
-      if (MESSAGES.length < 14)
+      //Chat buffer
+      if (9 > MESSAGES.length)
       {
         MESSAGES.push(req);
       }
