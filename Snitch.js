@@ -391,7 +391,6 @@ ws.on('message', function incoming(data)
           {
             wsOBJ.content = `/ban ${req.content.user.username} 5 for spam | 5 minutes`;
             ws.send(JSON.stringify(wsOBJ, null, 0));
-            MESSAGES = [];
           }
         }
       }
