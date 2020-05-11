@@ -27,7 +27,7 @@ var REGEX_MAP = new Map(); //Map of regex for blacklisted words
 
 //Set global arrays
 var SPAM = []; //Spam trigger array
-var MESSAGES = [];
+var MESSAGES = []; //Message buffer
 
 //Set global objects
 var CONFIG = {}; //Config obj
@@ -361,16 +361,37 @@ ws.on('message', function incoming(data)
 
       for (let objOut of MESSAGES)
       {
+        let i;
         let objUsr = objOut.content.user.username;
         let objMsg = objOut.content.msg;
-        if(req.content.user.username == objUsr && req.content.msg == objMsg && objMsg.length > 150)
+
+        let wsOBJ = new Object();
+        wsOBJ.type = "msg";
+
+        if (req.content.user.username == objUsr)
         {
-          sendMsg(req.type, "Mass spam", req.content.user.username, req.content.msg, timestamp, CONFIG.channel.trigger, 'trigger.log');
-          let wsOBJ = new Object();
-          wsOBJ.type = "msg";
-          wsOBJ.content = `/ban ${req.content.user.username} 60 for spam | 1 hour`; //Byebye juzo
-          ws.send(JSON.stringify(wsOBJ, null, 0));
-          MESSAGES = [];
+          ++i;
+          if (req.content.msg == objMsg)
+          {
+            if (objMsg.length > 20)
+            {
+              sendMsg(req.type, "Mass spam", req.content.user.username, req.content.msg, timestamp, CONFIG.channel.trigger, 'trigger.log');
+              wsOBJ.content = `/ban ${req.content.user.username} 60 for spam | 1 hour`; //Byebye juzo
+              ws.send(JSON.stringify(wsOBJ, null, 0));
+              MESSAGES = [];
+            }
+          }
+          else if(i > 4)
+          {
+            wsOBJ.content = `/warn ${req.content.user.username} for slow down`;
+            ws.send(JSON.stringify(wsOBJ, null, 0));
+          }
+          else if(i > 7)
+          {
+            wsOBJ.content = `/ban ${req.content.user.username} 5 for spam | 5 minutes`;
+            ws.send(JSON.stringify(wsOBJ, null, 0));
+            MESSAGES = [];
+          }
         }
       }
 
