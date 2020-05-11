@@ -372,7 +372,6 @@ ws.on('message', function incoming(data)
         if (req.content.user.username == objUsr)
         {
           ++usrMsg;
-          console.log(`Same user:${req.content.user.username}:${usrMsg}:${usrMsg}`);
           if (req.content.msg.length > 100)
           {
             if (req.content.msg == objMsg)
