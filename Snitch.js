@@ -361,7 +361,8 @@ ws.on('message', function incoming(data)
 
       for (let objOut of MESSAGES)
       {
-        let i;
+        let usrMsgs;
+        let exactMsgs;
         let objUsr = objOut.content.user.username;
         let objMsg = objOut.content.msg;
 
@@ -370,10 +371,11 @@ ws.on('message', function incoming(data)
 
         if (req.content.user.username == objUsr)
         {
-          ++i;
+          ++usrMsgs;
           if (req.content.msg == objMsg)
           {
-            if (objMsg.length > 20)
+            ++exactMsgs;
+            if (objMsg.length > 20 && exactMsgs > 2)
             {
               sendMsg(req.type, "Mass spam", req.content.user.username, req.content.msg, timestamp, CONFIG.channel.trigger, 'trigger.log');
               wsOBJ.content = `/ban ${req.content.user.username} 60 for spam | 1 hour`; //Byebye juzo
@@ -381,12 +383,12 @@ ws.on('message', function incoming(data)
               MESSAGES = [];
             }
           }
-          else if(i > 4)
+          else if(usrMsgs > 4)
           {
             wsOBJ.content = `/warn ${req.content.user.username} for slow down`;
             ws.send(JSON.stringify(wsOBJ, null, 0));
           }
-          else if(i > 7)
+          else if(usrMsgs > 7)
           {
             wsOBJ.content = `/ban ${req.content.user.username} 5 for spam | 5 minutes`;
             ws.send(JSON.stringify(wsOBJ, null, 0));
