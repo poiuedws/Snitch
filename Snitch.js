@@ -374,8 +374,7 @@ ws.on('message', function incoming(data)
           ++usrMsgs;
           if (req.content.msg == objMsg)
           {
-            ++exactMsgs;
-            if (objMsg.length > 20 && exactMsgs > 2)
+            if (objMsg.length > 100)
             {
               sendMsg(req.type, "Mass spam", req.content.user.username, req.content.msg, timestamp, CONFIG.channel.trigger, 'trigger.log');
               wsOBJ.content = `/ban ${req.content.user.username} 60 for spam | 1 hour`; //Byebye juzo
