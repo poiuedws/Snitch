@@ -161,6 +161,9 @@ client.on('message', msg =>
     let timestamp = getTime("stamp"); //Set timestamp
     let output = []; //Local array for outputs
 
+    let msgOut = ""; //Message to be sent
+    let tag = ""; //Message tag
+
     let command = msg.content.substr(1); //Full user input, includes the command
     let args = command.split(" "); //Split user input
     let input = command.substring(args[0].length + 1, command.length);//Full user input, excludes the command
@@ -181,7 +184,7 @@ client.on('message', msg =>
         break;
 
       case "ban":
-        
+
         break;
 
       case "online":
@@ -228,7 +231,7 @@ client.on('message', msg =>
 
         lr.on('end', function ()
         {
-          let msgOut = output.join("\n");
+          msgout = output.join("\n");
           msgOut = santizeMsg(output);
           let msgLen = msgOut.length;
 
@@ -244,8 +247,8 @@ client.on('message', msg =>
         break;
 
       case "regexset":
-        let msgOut = "";
-        let tag = "";
+        msgOut = "";
+        tag = "";
         input = input.split('~');
 
         let regTag = input[0];
@@ -364,7 +367,7 @@ ws.on('message', function incoming(data)
       }
 
       let usrMsg = 0;
-      //let lrgMsg = 0;
+      let chatBuff = 9;
       let maxMsgs = 7; //
       let maxlength = 200; //max message length on site chat at time of writing
       let maxMsgscurlength = 0;
@@ -387,40 +390,34 @@ ws.on('message', function incoming(data)
         if (req.content.user.username == objUsr)
         {
           ++usrMsg;
-          maxMsgscurlength += req.content.msg.length
+          maxMsgscurlength += req.content.msg.length;
 
-          /*if (req.content.msg.length > 100)
-          {
-            ++lrgMsg;
-            
-          }*/
-          if (usrMsg == maxMsgs ||usrMsg == maxMsgs + 1|| usrMsg == maxMsgs - 2) //lol
+          if (usrMsg >= maxMsgs - 2 && usrMsg + 1 <= maxMsgs)
           {
             trigMsg = true;
             logMsg = `Spam warn:${req.content.user.username}`;
-            wsOBJ.content = `/warn ${req.content.user.username} for slow down please`; //please, you've typed 5 rows already.
+            //wsOBJ.content = `/warn ${req.content.user.username} for slow down please`; //please, you've typed 5 rows already.
           }
           else if (usrMsg > maxMsgs)
           {
             //if (lrgMsg > maxMsgs)
-            if(usrMsg = 9)//chat buffer max is 9 //you're spamming nearly empty lines, so we just manually set the time to be a dayban, or half the max length of spamming with large messages
+            if (usrMsg >= chatBuff)//chat buffer max is 9 //you're spamming nearly empty lines, so we just manually set the time to be a dayban, or half the max length of spamming with large messages
             {
               trigMsg = true;
               logMsg = `Spam ban:${req.content.user.username}:${req.content.msg}`;
               wsOBJ.content = `/ban ${req.content.user.username} 15 for spam | 15 minutes`; //1440 seemed too harsh, 15 might not be enough but we can increase it later. This is the easiest one to accidentally trigger without time being accounted for at certain times of the day but people will recieve 3 warnings before this point
             }
-             
-            else if (maxMsgscurlength > (maxtotalpt*0.5)) 
+
+            else if (maxMsgscurlength > (maxtotalpt * 0.5)) 
             {
-              curpt==(maxtotalpt*maxMsgscurlength*0.01/maxMsgs) //quite naughty, at minimum a dayban, max 2 days, though this is simply based on 1400 being close enough to 1440 that nobody cares
+              curpt == (maxtotalpt * maxMsgscurlength * 0.01 / maxMsgs); //quite naughty, at minimum a dayban, max 2 days, though this is simply based on 1400 being close enough to 1440 that nobody cares
               trigMsg = true;
               logMsg = `MassSpam:${req.content.user.username}:${req.content.msg}`;
               wsOBJ.content = `/ban ${req.content.user.username} ${curpt} for spam | ${curpt} minutes`; //Byebye juzo
-              MESSAGES = [];
             }
-            else if (maxMsgscurlength > (maxtotalpt*0.25)) //key here is people can still post below a quarter volume per post when averaged out over 7 posts
+            else if (maxMsgscurlength > (maxtotalpt * 0.25)) //key here is people can still post below a quarter volume per post when averaged out over 7 posts
             {
-              curpt==(maxtotalpt*maxMsgscurlength*0.0001/maxMsgs) //just a little naughty
+              curpt == (maxtotalpt * maxMsgscurlength * 0.0001 / maxMsgs); //just a little naughty
               trigMsg = true;
               logMsg = `Spam ban:${req.content.user.username}:${req.content.msg}`;
               wsOBJ.content = `/ban ${req.content.user.username} ${curpt} for spam | ${curpt} minutes`;
@@ -430,15 +427,13 @@ ws.on('message', function incoming(data)
       }
       if (trigMsg)
       {
-        console.log(logMsg);
+        console.log(`${logMsg}:${curpt}`);
         ws.send(JSON.stringify(wsOBJ, null, 0));
-        trigMsg = false;
+        sendMsg(req.type, "Anti-spam", req.content.user.username, `${logMsg}:${curpt}`, timestamp, CONFIG.channel.trigger, 'trigger.log');
       }
-      usrMsg = 0;
-      lrgMsg = 0;
 
       //Chat buffer
-      if (9 > MESSAGES.length)
+      if (chatBuff > MESSAGES.length)
       {
         MESSAGES.push(req);
       }
